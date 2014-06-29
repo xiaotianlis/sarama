@@ -148,14 +148,23 @@ func (b *Broker) Produce(clientID string, request *ProduceRequest) (*ProduceResp
 	var response *ProduceResponse
 	var err error
 
+    // retryTimes := 10
+    // for i := 0; i < retryTimes; i++ {
+    //    // 此处增加失败重试功能
 	if request.RequiredAcks == NoResponse {
 		err = b.sendAndReceive(clientID, request, nil)
 	} else {
 		response = new(ProduceResponse)
 		err = b.sendAndReceive(clientID, request, response)
 	}
+    //     if err == nil {
+    //         break
+    //     }
+    //     fmt.Printf("[WARN] In Broker Produce sendAndReceive Try %d times\n", i)
+    // }
 
 	if err != nil {
+        fmt.Printf("[ERROR] In Broker Produce sendAndReceive failed\n")
 		return nil, err
 	}
 

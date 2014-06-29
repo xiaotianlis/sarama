@@ -15,10 +15,12 @@ type produceRequestBuilder []*produceMessage
 // Otherwise, we just hand it back to the producer to enqueue using the normal
 // method.
 func (msg *produceMessage) enqueue(p *Producer) error {
+    // 如果是异步传输，直接调用addMessage
 	if !msg.sync {
 		return p.addMessage(msg)
 	}
 
+    // 如果是同步传输
 	var prb produceRequestBuilder = []*produceMessage{msg}
 	bp, err := p.brokerProducerFor(msg.tp)
 	if err != nil {
@@ -36,7 +38,8 @@ func (msg *produceMessage) reenqueue(p *Producer) error {
 	if !msg.retried {
 		msg.retried = true
 		return msg.enqueue(p)
-	}
+	} else {
+    }
 	return nil
 }
 

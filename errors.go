@@ -60,13 +60,14 @@ func (err ConfigurationError) Error() string {
 type DroppedMessagesError struct {
 	DroppedMessages int
 	Err             error
+    Type            int
 }
 
 func (err DroppedMessagesError) Error() string {
 	if err.Err != nil {
-		return fmt.Sprintf("kafka: Dropped %d messages: %s", err.DroppedMessages, err.Err.Error())
+		return fmt.Sprintf("kafka: Dropped %d messages, type: %d, %s", err.DroppedMessages, err.Type, err.Err.Error())
 	} else {
-		return fmt.Sprintf("kafka: Dropped %d messages", err.DroppedMessages)
+		return fmt.Sprintf("kafka: Dropped %d messages, type: %d", err.DroppedMessages, err.Type)
 	}
 }
 

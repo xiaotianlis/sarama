@@ -21,6 +21,7 @@ func (pr *ProduceResponseBlock) decode(pd packetDecoder) (err error) {
 }
 
 type ProduceResponse struct {
+    // topic  partitionId  responseBlock
 	Blocks map[string]map[int32]*ProduceResponseBlock
 }
 

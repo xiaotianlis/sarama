@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync"
 	"time"
+    //"github.com/qiniu/log"
 )
 
 // ProducerConfig is used to pass multiple configuration options to NewProducer.
@@ -196,11 +197,15 @@ func (p *Producer) addMessage(msg *produceMessage) error {
 }
 
 func (p *Producer) brokerProducerFor(tp topicPartition) (*brokerProducer, error) {
+    // 找到对应topic partition的Leader Broker
 	broker, err := p.client.Leader(tp.topic, tp.partition)
 	if err != nil {
 		return nil, err
 	}
 
+    // 为什么要加读锁？，这个值会修改吗?
+    // 确实会修改，如果不存在这个brokerProducer
+    // 则新生成一个brokerProducer
 	p.m.RLock()
 	bp, ok := p.brokerProducers[broker]
 	p.m.RUnlock()
@@ -238,12 +243,12 @@ func (p *Producer) newBrokerProducer(broker *Broker) *brokerProducer {
 		wg.Done()
 		for {
 			select {
-			case <-bp.flushNow:
+			case <-bp.flushNow: // 最大buffer满足了
 				if shutdownRequired = bp.flush(p); shutdownRequired {
 					goto shutdown
 				}
 				bp.flush(p)
-			case <-timer.C:
+			case <-timer.C: // 最长的等待时间到达，如果没有要发送的数据，则跳转shutdown
 				if shutdownRequired = bp.flushIfAnyMessages(p); shutdownRequired {
 					goto shutdown
 				}
@@ -320,6 +325,8 @@ func (bp *brokerProducer) flush(p *Producer) (shutdownRequired bool) {
 		}
 	}
 	bp.mapM.Unlock()
+    // log.Info("end prb lenght ", len(prb))
+
 
 	if len(prb) > 0 {
 		bp.mapM.Lock()
@@ -358,7 +365,7 @@ func (bp *brokerProducer) flushRequest(p *Producer, prb produceRequestBuilder, e
 			}
 		})
 		if overlimit > 0 {
-			errorCb(DroppedMessagesError{overlimit, nil})
+			errorCb(DroppedMessagesError{overlimit, nil, 0})
 		}
 		return true
 	}
@@ -375,7 +382,7 @@ func (bp *brokerProducer) flushRequest(p *Producer, prb produceRequestBuilder, e
 			if block == nil {
 				// IncompleteResponse. Here we just drop all the messages; we don't know whether
 				// they were successfully sent or not. Non-ideal, but how often does it happen?
-				errorCb(DroppedMessagesError{len(prb), IncompleteResponse})
+				errorCb(DroppedMessagesError{len(prb), IncompleteResponse, 1})
 			}
 			switch block.Err {
 			case NoError:
@@ -394,10 +401,24 @@ func (bp *brokerProducer) flushRequest(p *Producer, prb produceRequestBuilder, e
 					}
 				})
 				if overlimit > 0 {
-					errorCb(DroppedMessagesError{overlimit, nil})
+					errorCb(DroppedMessagesError{overlimit, nil, 2})
 				}
 			default:
-				errorCb(DroppedMessagesError{len(prb), err})
+                // 是否可以和上面做同样的事情？
+				// p.client.RefreshTopicMetadata(topic)
+
+				// overlimit := 0
+				// prb.reverseEach(func(msg *produceMessage) {
+				// 	if msg.hasTopicPartition(topic, partition) {
+				// 		if err := msg.reenqueue(p); err != nil {
+				// 			overlimit++
+				// 		}
+				// 	}
+				// })
+				// if overlimit > 0 {
+				// 	errorCb(DroppedMessagesError{overlimit, nil, 4})
+				// }
+				errorCb(DroppedMessagesError{len(prb), err, 3})
 			}
 		}
 	}
